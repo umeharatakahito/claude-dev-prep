@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Developer 対策</title>
+<style>
+:root { --bg:#faf9f5; --fg:#1f1e1d; --sub:#6b6a66; --card:#fff; --line:#e4e2da; --acc:#c15f3c; --ok:#2e7d4f; --ng:#b3382c; }
+@media (prefers-color-scheme: dark) { :root { --bg:#1f1e1d; --fg:#f0eee6; --sub:#a9a79f; --card:#2a2927; --line:#3d3b37; --acc:#e08a67; --ok:#5fbf86; --ng:#e8776b; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.7 -apple-system,"Hiragino Sans",sans-serif; }
+main { max-width:760px; margin:0 auto; padding:16px; }
+h1 { font-size:1.4rem; margin:8px 0 4px; } h2 { font-size:1.15rem; margin:24px 0 8px; }
+.sub { color:var(--sub); font-size:.9rem; }
+nav { display:flex; gap:6px; margin:12px 0; flex-wrap:wrap; }
+nav button, .btn { border:1px solid var(--line); background:var(--card); color:var(--fg); padding:8px 14px; border-radius:8px; font:inherit; cursor:pointer; }
+nav button.on, .btn.pri { background:var(--acc); color:#fff; border-color:var(--acc); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+.opt { display:block; width:100%; text-align:left; margin:6px 0; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; cursor:pointer; }
+.opt.sel { border-color:var(--acc); outline:2px solid var(--acc); }
+.opt.right { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 15%, var(--bg)); }
+.opt.wrong { border-color:var(--ng); background:color-mix(in srgb, var(--ng) 15%, var(--bg)); }
+.bar { height:10px; background:var(--line); border-radius:5px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--acc); }
+table { width:100%; border-collapse:collapse; font-size:.92rem; } td,th { padding:6px 4px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+.tag { font-size:.75rem; padding:1px 8px; border-radius:99px; background:var(--line); color:var(--sub); }
+.note { font-size:.85rem; color:var(--sub); border-left:3px solid var(--acc); padding-left:10px; margin:12px 0; }
+label { display:block; margin:8px 0 2px; font-size:.9rem; } input { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Claude Certified Developer – Foundations 対策</h1>
+  <p class="sub">試験コード CCDV-F ・ 53問 ・ 120分 ・ 合格 720/1000 ・ $125（試験ガイド v1.0 より）</p>
+  <div class="note">この診断の問題は、公式の問題ではなく、試験ガイドのブループリントをもとにした自作の練習問題です。結果は目安で、合否を保証しません。試験内容は <b>2026年12月7日に更新</b>されます（更新版ガイドは11月17日公開予定）。</div>
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</main>
+<script src="questions.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const KEY = "claude-dev-prep-v1";
+let store = {};
+try { store = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+let tab = store.result ? "result" : "quiz";
+let quiz = null; // {order:[{qi, opts:[origIdx...]}], i, answers:[]}
+
+function renderNav() {
+  const tabs = [["quiz", "実力診断"], ["result", "結果と計画"], ["scope", "出題範囲"]];
+  $("#nav").innerHTML = tabs.map(([k, n]) => `<button class="${tab === k ? "on" : ""}" data-t="${k}">${n}</button>`).join("");
+  $("#nav").querySelectorAll("button").forEach((b) => (b.onclick = () => { tab = b.dataset.t; render(); }));
+}
+
+function startQuiz() {
+  const order = shuffle(QUESTIONS.map((_, i) => i)).map((qi) => ({ qi, opts: shuffle(QUESTIONS[qi].o.map((_, k) => k)) }));
+  quiz = { order, i: 0, answers: [] };
+}
+
+function viewQuiz() {
+  if (!quiz) {
+    $("#view").innerHTML = `<div class="card"><p>${QUESTIONS.length}問の診断で、分野ごとの得意・不得意を調べます（約${Math.round(QUESTIONS.length * 1.2)}分）。</p>
+      <p class="sub">調べながら検索せず、まず今の実力で答えてください。終わると、弱い分野から勉強する計画が出ます。</p>
+      <button class="btn pri" id="go">診断を始める</button></div>`;
+    $("#go").onclick = () => { startQuiz(); render(); };
+    return;
+  }
+  const cur = quiz.order[quiz.i], q = QUESTIONS[cur.qi];
+  const picked = quiz.answers[quiz.i];
+  const done = picked !== undefined;
+  $("#view").innerHTML = `<div class="card"><div class="sub">${quiz.i + 1} / ${quiz.order.length} <span class="tag">分野${q.d} ${esc(DOMAINS[q.d - 1].name)}</span></div>
+    <p><b>${esc(q.q)}</b></p>
+    ${cur.opts.map((k) => {
+      let cls = "opt";
+      if (done) cls += k === q.a ? " right" : k === picked ? " wrong" : "";
+      return `<button class="${cls}" data-k="${k}" ${done ? "disabled" : ""}>${esc(q.o[k])}</button>`;
+    }).join("")}
+    ${done ? `<p class="note"><b>${picked === q.a ? "正解" : "不正解"}。</b> ${esc(q.e)}</p><button class="btn pri" id="next">${quiz.i + 1 === quiz.order.length ? "結果を見る" : "次へ"}</button>` : ""}</div>`;
+  document.querySelectorAll(".opt").forEach((b) => (b.onclick = () => { quiz.answers[quiz.i] = +b.dataset.k; render(); }));
+  if (done) $("#next").onclick = () => {
+    if (quiz.i + 1 < quiz.order.length) { quiz.i++; render(); return; }
+    finish(); tab = "result"; render();
+  };
+}
+
+function finish() {
+  const per = {};
+  DOMAINS.forEach((d) => (per[d.id] = { n: 0, c: 0 }));
+  quiz.order.forEach((o, i) => { const q = QUESTIONS[o.qi]; per[q.d].n++; if (quiz.answers[i] === q.a) per[q.d].c++; });
+  store.result = { at: new Date().toISOString(), per };
+  save(); quiz = null;
+}
+
+function viewResult() {
+  const r = store.result;
+  if (!r) { $("#view").innerHTML = `<div class="card">まだ診断がありません。「実力診断」から始めてください。</div>`; return; }
+  let n = 0, c = 0;
+  const rows = DOMAINS.map((d) => {
+    const p = r.per[d.id]; n += p.n; c += p.c;
+    const acc = p.n ? p.c / p.n : 0;
+    // 優先度 = 配点比率 × 取りこぼし率。配点が大きく苦手な分野ほど先に勉強する
+    return { d, p, acc, pri: d.w * (1 - acc) };
+  });
+  const total = Math.round((c / n) * 100);
+  const sorted = rows.slice().sort((a, b) => b.pri - a.pri);
+  const sumPri = sorted.reduce((s, x) => s + x.pri, 0) || 1;
+  const exam = store.examDate || "", hpd = store.hpd || 1.5;
+
+  $("#view").innerHTML = `
+  <div class="card"><b>総合 ${total}%</b>（${c} / ${n}問）<span class="sub"> ・ ${new Date(r.at).toLocaleDateString("ja-JP")}</span>
+    <p class="sub">本試験の合格ラインは換算点で720/1000ですが、この診断の%とは同じ尺度ではありません。分野ごとの弱点を見る目安にしてください。</p></div>
+  <h2>分野ごとの結果（配点の大きい順）</h2>
+  <div class="card"><table><tr><th>分野</th><th>配点</th><th>正答率</th></tr>
+    ${rows.slice().sort((a, b) => b.d.w - a.d.w).map((x) => `<tr><td>${x.d.id}. ${esc(x.d.name)}</td><td>${x.d.w}%</td>
+      <td><div class="bar"><i style="width:${Math.round(x.acc * 100)}%"></i></div>${x.p.c}/${x.p.n}（${Math.round(x.acc * 100)}%）</td></tr>`).join("")}</table>
+    <p class="sub">分野3・4は配点が小さい（それぞれ約3%）ため、問題数も少なく、ぶれやすい点に注意してください。</p></div>
+  <h2>勉強の優先順位</h2>
+  <div class="card"><ol>${sorted.map((x) => `<li><b>${esc(x.d.name)}</b> <span class="sub">（配点${x.d.w}% × 取りこぼし${Math.round((1 - x.acc) * 100)}%）</span><ul>${x.d.topics.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></li>`).join("")}</ol></div>
+  <h2>日程の計画</h2>
+  <div class="card">
+    <label>受験したい日</label><input type="date" id="exam" value="${esc(exam)}">
+    <label>1日の勉強時間（時間）</label><input type="number" id="hpd" min="0.5" max="8" step="0.5" value="${hpd}">
+    <div id="plan"></div>
+  </div>
+  <p><button class="btn" id="retry">もう一度診断する</button></p>`;
+
+  const drawPlan = () => {
+    const e = $("#exam").value, h = parseFloat($("#hpd").value) || 1;
+    store.examDate = e; store.hpd = h; save();
+    if (!e) { $("#plan").innerHTML = `<p class="sub">受験日を入れると、分野ごとの勉強時間を配分します。</p>`; return; }
+    const days = Math.ceil((new Date(e) - new Date(new Date().toDateString())) / 86400000);
+    if (days < 1) { $("#plan").innerHTML = `<p>受験日は明日以降にしてください。</p>`; return; }
+    const reserve = Math.min(2, Math.floor(days / 7) * 1 + (days >= 4 ? 1 : 0)); // 最終の総復習日
+    const study = Math.max(1, days - reserve);
+    const total = study * h;
+    const warn = new Date(e) >= new Date("2026-12-07") ? `<p class="note">この日付は試験更新（12月7日）以降です。11月17日公開の更新版ガイドを確認してから、範囲を見直してください。</p>` : `<p class="note">この日付は試験更新（12月7日）の前です。現行ガイド（v1.0）の範囲で勉強します。</p>`;
+    $("#plan").innerHTML = `<p>今日から <b>${days}日</b>。勉強日 ${study}日 + 総復習 ${reserve}日。合計およそ <b>${total.toFixed(1)}時間</b>。</p>${warn}
+      <table><tr><th>順番</th><th>分野</th><th>目安時間</th></tr>
+      ${sorted.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.d.name)}</td><td>${(total * x.pri / sumPri).toFixed(1)}時間</td></tr>`).join("")}</table>
+      <p class="sub">配分 = 配点 × 取りこぼし率。最後に総復習と、公式ガイドのサンプル問題を解く日を入れます。</p>`;
+  };
+  $("#exam").onchange = drawPlan; $("#hpd").onchange = drawPlan; drawPlan();
+  $("#retry").onclick = () => { quiz = null; tab = "quiz"; render(); };
+}
+
+function viewScope() {
+  $("#view").innerHTML = `<div class="card"><table><tr><th>分野</th><th>配点</th></tr>
+    ${DOMAINS.map((d) => `<tr><td><b>${d.id}. ${esc(d.name)}</b><ul>${d.topics.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></td><td>${d.w}%</td></tr>`).join("")}</table></div>
+    <div class="card"><b>公式の資料</b><ul>
+      <li><a href="https://anthropic-partners.skilljar.com/claude-certified-developer-foundations-certification">認定資格ページ（申込）</a></li>
+      <li><a href="https://anthropic-partners.skilljar.com/page/claude-certification-exam-prep-courses">試験対策コース一覧</a></li>
+      <li><a href="https://anthropic-partners.skilljar.com/page/faq-certifications">認定資格 FAQ</a></li></ul>
+      <p class="sub">配点は試験ガイド v1.0（2026年7月発効）の値です。実践のすすめ: Claude API を使い、ツール1つ以上・基本的なセキュリティと評価を含むアプリを1つ作って動かす。</p></div>`;
+}
+
+function render() {
+  renderNav();
+  if (tab === "quiz") viewQuiz(); else if (tab === "result") viewResult(); else viewScope();
+}
+render();
+</script>
+</body>
+</html>
