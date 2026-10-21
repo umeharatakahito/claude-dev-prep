@@ -54,42 +54,64 @@ function renderNav() {
   $("#nav").querySelectorAll("button").forEach((b) => (b.onclick = () => { tab = b.dataset.t; render(); }));
 }
 
-function startQuiz() {
-  const order = shuffle(QUESTIONS.map((_, i) => i)).map((qi) => ({ qi, opts: shuffle(QUESTIONS[qi].o.map((_, k) => k)) }));
-  quiz = { order, i: 0, answers: [] };
+const POOLS = { basic: () => QUESTIONS, hard: () => HARD };
+const isMulti = (q) => Array.isArray(q.a);
+const isRight = (q, ans) => isMulti(q) ? Array.isArray(ans) && ans.length === q.a.length && q.a.every((k) => ans.includes(k)) : ans === q.a;
+const isRightKey = (q, k) => isMulti(q) ? q.a.includes(k) : k === q.a;
+
+function startQuiz(set) {
+  const pool = POOLS[set]();
+  const order = shuffle(pool.map((_, i) => i)).map((qi) => ({ qi, opts: shuffle(pool[qi].o.map((_, k) => k)) }));
+  quiz = { set, order, i: 0, answers: [], draft: [] };
 }
 
 function viewQuiz() {
   if (!quiz) {
-    $("#view").innerHTML = `<div class="card"><p>${QUESTIONS.length}問の診断で、分野ごとの得意・不得意を調べます（約${Math.round(QUESTIONS.length * 1.2)}分）。</p>
-      <p class="sub">調べながら検索せず、まず今の実力で答えてください。終わると、弱い分野から勉強する計画が出ます。</p>
-      <button class="btn pri" id="go">診断を始める</button></div>`;
-    $("#go").onclick = () => { startQuiz(); render(); };
+    const p = store.practice;
+    $("#view").innerHTML = `<div class="card"><b>基本の診断（${QUESTIONS.length}問）</b>
+      <p class="sub">分野ごとの得意・不得意を調べます。検索せず、今の実力で答えてください。終わると勉強の計画が出ます。</p>
+      <button class="btn pri" id="go">診断を始める</button></div>
+      <div class="card"><b>追加練習・応用（${HARD.length}問）</b>
+      <p class="sub">場面設定つきで、複数選択を含みます。本番に近い形式の練習です。「2つ選べ」の問題は、組み合わせが完全に合ったときだけ正解です。${p ? `<br>前回: ${p.c}/${p.n}問（${Math.round(p.c / p.n * 100)}%）` : ""}</p>
+      <button class="btn pri" id="go2">応用を始める</button></div>`;
+    $("#go").onclick = () => { startQuiz("basic"); render(); };
+    $("#go2").onclick = () => { startQuiz("hard"); render(); };
     return;
   }
-  const cur = quiz.order[quiz.i], q = QUESTIONS[cur.qi];
-  const picked = quiz.answers[quiz.i];
-  const done = picked !== undefined;
-  $("#view").innerHTML = `<div class="card"><div class="sub">${quiz.i + 1} / ${quiz.order.length} <span class="tag">分野${q.d} ${esc(DOMAINS[q.d - 1].name)}</span></div>
+  const pool = POOLS[quiz.set](), cur = quiz.order[quiz.i], q = pool[cur.qi], multi = isMulti(q);
+  const picked = quiz.answers[quiz.i], done = picked !== undefined;
+  const sel = done ? [].concat(picked) : quiz.draft;
+  $("#view").innerHTML = `<div class="card"><div class="sub">${quiz.i + 1} / ${quiz.order.length} <span class="tag">分野${q.d} ${esc(DOMAINS[q.d - 1].name)}</span>${multi ? ` <span class="tag">${q.pick}つ選ぶ</span>` : ""}</div>
     <p><b>${esc(q.q)}</b></p>
     ${cur.opts.map((k) => {
       let cls = "opt";
-      if (done) cls += k === q.a ? " right" : k === picked ? " wrong" : "";
+      if (done) cls += isRightKey(q, k) ? " right" : sel.includes(k) ? " wrong" : "";
+      else if (sel.includes(k)) cls += " sel";
       return `<button class="${cls}" data-k="${k}" ${done ? "disabled" : ""}>${esc(q.o[k])}</button>`;
     }).join("")}
-    ${done ? `<p class="note"><b>${picked === q.a ? "正解" : "不正解"}。</b> ${esc(q.e)}</p><button class="btn pri" id="next">${quiz.i + 1 === quiz.order.length ? "結果を見る" : "次へ"}</button>` : ""}</div>`;
-  document.querySelectorAll(".opt").forEach((b) => (b.onclick = () => { quiz.answers[quiz.i] = +b.dataset.k; render(); }));
+    ${done ? `<p class="note"><b>${isRight(q, picked) ? "正解" : "不正解"}。</b> ${esc(q.e)}</p><button class="btn pri" id="next">${quiz.i + 1 === quiz.order.length ? "結果を見る" : "次へ"}</button>`
+           : multi ? `<button class="btn pri" id="ans" ${sel.length === q.pick ? "" : "disabled"}>回答する（${sel.length}/${q.pick}）</button>` : ""}</div>`;
+  document.querySelectorAll(".opt").forEach((b) => (b.onclick = () => {
+    const k = +b.dataset.k;
+    if (!multi) { quiz.answers[quiz.i] = k; render(); return; }
+    const at = quiz.draft.indexOf(k);
+    if (at >= 0) quiz.draft.splice(at, 1); else if (quiz.draft.length < q.pick) quiz.draft.push(k);
+    render();
+  }));
+  if (!done && multi) $("#ans").onclick = () => { quiz.answers[quiz.i] = quiz.draft.slice(); quiz.draft = []; render(); };
   if (done) $("#next").onclick = () => {
     if (quiz.i + 1 < quiz.order.length) { quiz.i++; render(); return; }
-    finish(); tab = "result"; render();
+    const set = quiz.set; finish(); tab = set === "basic" ? "result" : "quiz"; if (set === "hard") alert("応用の結果を保存しました。「結果と計画」で分野別の成績を見られます。"); render();
   };
 }
 
 function finish() {
-  const per = {};
+  const pool = POOLS[quiz.set](), per = {};
   DOMAINS.forEach((d) => (per[d.id] = { n: 0, c: 0 }));
-  quiz.order.forEach((o, i) => { const q = QUESTIONS[o.qi]; per[q.d].n++; if (quiz.answers[i] === q.a) per[q.d].c++; });
-  store.result = { at: new Date().toISOString(), per };
+  quiz.order.forEach((o, i) => { const q = pool[o.qi]; per[q.d].n++; if (isRight(q, quiz.answers[i])) per[q.d].c++; });
+  const sum = Object.values(per).reduce((t, p) => ({ n: t.n + p.n, c: t.c + p.c }), { n: 0, c: 0 });
+  if (quiz.set === "basic") store.result = { at: new Date().toISOString(), per };
+  else store.practice = { at: new Date().toISOString(), per, n: sum.n, c: sum.c };
   save(); quiz = null;
 }
 
@@ -116,6 +138,7 @@ function viewResult() {
     ${rows.slice().sort((a, b) => b.d.w - a.d.w).map((x) => `<tr><td>${x.d.id}. ${esc(x.d.name)}</td><td>${x.d.w}%</td>
       <td><div class="bar"><i style="width:${Math.round(x.acc * 100)}%"></i></div>${x.p.c}/${x.p.n}（${Math.round(x.acc * 100)}%）</td></tr>`).join("")}</table>
     <p class="sub">分野3・4は配点が小さい（それぞれ約3%）ため、問題数も少なく、ぶれやすい点に注意してください。</p></div>
+  ${store.practice ? `<h2>応用の結果（${new Date(store.practice.at).toLocaleDateString("ja-JP")}）</h2><div class="card"><b>${store.practice.c} / ${store.practice.n}問</b>（${Math.round(store.practice.c / store.practice.n * 100)}%）<table>${DOMAINS.filter((d) => store.practice.per[d.id].n).map((d) => { const p = store.practice.per[d.id]; return `<tr><td>${d.id}. ${esc(d.name)}</td><td>${p.c}/${p.n}</td></tr>`; }).join("")}</table></div>` : ""}
   <h2>勉強の優先順位</h2>
   <div class="card"><ol>${sorted.map((x) => `<li><b>${esc(x.d.name)}</b> <span class="sub">（配点${x.d.w}% × 取りこぼし${Math.round((1 - x.acc) * 100)}%）</span><ul>${x.d.topics.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></li>`).join("")}</ol></div>
   <h2>日程の計画</h2>
@@ -124,7 +147,7 @@ function viewResult() {
     <label>1日の勉強時間（時間）</label><input type="number" id="hpd" min="0.5" max="8" step="0.5" value="${hpd}">
     <div id="plan"></div>
   </div>
-  <p><button class="btn" id="retry">もう一度診断する</button></p>`;
+  <p><button class="btn" id="retry">診断・練習に戻る</button></p>`;
 
   const drawPlan = () => {
     const e = $("#exam").value, h = parseFloat($("#hpd").value) || 1;
