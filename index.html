@@ -54,7 +54,7 @@ function renderNav() {
   $("#nav").querySelectorAll("button").forEach((b) => (b.onclick = () => { tab = b.dataset.t; render(); }));
 }
 
-const POOLS = { basic: () => QUESTIONS, hard: () => HARD };
+const POOLS = { basic: () => QUESTIONS, hard: () => HARD, drill: () => DRILL };
 const isMulti = (q) => Array.isArray(q.a);
 const isRight = (q, ans) => isMulti(q) ? Array.isArray(ans) && ans.length === q.a.length && q.a.every((k) => ans.includes(k)) : ans === q.a;
 const isRightKey = (q, k) => isMulti(q) ? q.a.includes(k) : k === q.a;
@@ -73,9 +73,13 @@ function viewQuiz() {
       <button class="btn pri" id="go">診断を始める</button></div>
       <div class="card"><b>追加練習・応用（${HARD.length}問）</b>
       <p class="sub">場面設定つきで、複数選択を含みます。本番に近い形式の練習です。「2つ選べ」の問題は、組み合わせが完全に合ったときだけ正解です。${p ? `<br>前回: ${p.c}/${p.n}問（${Math.round(p.c / p.n * 100)}%）` : ""}</p>
-      <button class="btn pri" id="go2">応用を始める</button></div>`;
+      <button class="btn pri" id="go2">応用を始める</button></div>
+      <div class="card"><b>苦手補強・難問（${DRILL.length}問）</b>
+      <p class="sub">モデルの選択／エージェント／アプリケーションと統合を、細かい仕組みまで問う難問です。解説は「正解の理由」と「他が違う理由」付きです。${store.drill ? `<br>前回: ${store.drill.c}/${store.drill.n}問（${Math.round(store.drill.c / store.drill.n * 100)}%）` : ""}</p>
+      <button class="btn pri" id="go3">難問を始める</button></div>`;
     $("#go").onclick = () => { startQuiz("basic"); render(); };
     $("#go2").onclick = () => { startQuiz("hard"); render(); };
+    $("#go3").onclick = () => { startQuiz("drill"); render(); };
     return;
   }
   const pool = POOLS[quiz.set](), cur = quiz.order[quiz.i], q = pool[cur.qi], multi = isMulti(q);
@@ -89,7 +93,7 @@ function viewQuiz() {
       else if (sel.includes(k)) cls += " sel";
       return `<button class="${cls}" data-k="${k}" ${done ? "disabled" : ""}>${esc(q.o[k])}</button>`;
     }).join("")}
-    ${done ? `<p class="note"><b>${isRight(q, picked) ? "正解" : "不正解"}。</b> ${esc(q.e)}</p><button class="btn pri" id="next">${quiz.i + 1 === quiz.order.length ? "結果を見る" : "次へ"}</button>`
+    ${done ? `<p class="note" style="white-space:pre-line"><b>${isRight(q, picked) ? "正解" : "不正解"}。</b>\n${esc(q.e)}</p><button class="btn pri" id="next">${quiz.i + 1 === quiz.order.length ? "結果を見る" : "次へ"}</button>`
            : multi ? `<button class="btn pri" id="ans" ${sel.length === q.pick ? "" : "disabled"}>回答する（${sel.length}/${q.pick}）</button>` : ""}</div>`;
   document.querySelectorAll(".opt").forEach((b) => (b.onclick = () => {
     const k = +b.dataset.k;
@@ -101,7 +105,7 @@ function viewQuiz() {
   if (!done && multi) $("#ans").onclick = () => { quiz.answers[quiz.i] = quiz.draft.slice(); quiz.draft = []; render(); };
   if (done) $("#next").onclick = () => {
     if (quiz.i + 1 < quiz.order.length) { quiz.i++; render(); return; }
-    const set = quiz.set; finish(); tab = set === "basic" ? "result" : "quiz"; if (set === "hard") alert("応用の結果を保存しました。「結果と計画」で分野別の成績を見られます。"); render();
+    const set = quiz.set; finish(); tab = set === "basic" ? "result" : "quiz"; if (set !== "basic") alert("結果を保存しました。"); render();
   };
 }
 
@@ -111,7 +115,7 @@ function finish() {
   quiz.order.forEach((o, i) => { const q = pool[o.qi]; per[q.d].n++; if (isRight(q, quiz.answers[i])) per[q.d].c++; });
   const sum = Object.values(per).reduce((t, p) => ({ n: t.n + p.n, c: t.c + p.c }), { n: 0, c: 0 });
   if (quiz.set === "basic") store.result = { at: new Date().toISOString(), per };
-  else store.practice = { at: new Date().toISOString(), per, n: sum.n, c: sum.c };
+  else store[quiz.set === "drill" ? "drill" : "practice"] = { at: new Date().toISOString(), per, n: sum.n, c: sum.c };
   save(); quiz = null;
 }
 
