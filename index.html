@@ -75,7 +75,7 @@ function viewQuiz() {
       <p class="sub">場面設定つきで、複数選択を含みます。本番に近い形式の練習です。「2つ選べ」の問題は、組み合わせが完全に合ったときだけ正解です。${p ? `<br>前回: ${p.c}/${p.n}問（${Math.round(p.c / p.n * 100)}%）` : ""}</p>
       <button class="btn pri" id="go2">応用を始める</button></div>
       <div class="card"><b>苦手補強・難問（${DRILL.length}問）</b>
-      <p class="sub">モデルの選択／エージェント／アプリケーションと統合を、細かい仕組みまで問う難問です。解説は「正解の理由」と「他が違う理由」付きです。${store.drill ? `<br>前回: ${store.drill.c}/${store.drill.n}問（${Math.round(store.drill.c / store.drill.n * 100)}%）` : ""}</p>
+      <p class="sub">配点10%以上の分野（アプリケーションと統合／モデルの選択／エージェント／プロンプト／ツールとMCP）を、細かい仕組みまで問う難問です。解説は「正解の理由」と「他が違う理由」付きです。${store.drill ? `<br>前回: ${store.drill.c}/${store.drill.n}問（${Math.round(store.drill.c / store.drill.n * 100)}%）` : ""}</p>
       <button class="btn pri" id="go3">難問を始める</button></div>`;
     $("#go").onclick = () => { startQuiz("basic"); render(); };
     $("#go2").onclick = () => { startQuiz("hard"); render(); };
