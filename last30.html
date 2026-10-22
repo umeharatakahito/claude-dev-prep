@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>直前30分まとめ</title>
+<style>
+:root { --bg:#faf9f5; --fg:#1f1e1d; --sub:#6b6a66; --card:#fff; --line:#e4e2da; --acc:#c15f3c; --warn:#b3382c; }
+@media (prefers-color-scheme: dark) { :root { --bg:#1f1e1d; --fg:#f0eee6; --sub:#a9a79f; --card:#2a2927; --line:#3d3b37; --acc:#e08a67; --warn:#e8776b; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.75 -apple-system,"Hiragino Sans",sans-serif; }
+main { max-width:760px; margin:0 auto; padding:16px 16px 64px; }
+h1 { font-size:1.35rem; margin:8px 0 2px; } h2 { font-size:1.1rem; margin:0 0 6px; } h3 { font-size:1rem; margin:14px 0 4px; }
+.sub { color:var(--sub); font-size:.88rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:14px 0; }
+.time { display:inline-block; font-size:.78rem; background:var(--acc); color:#fff; border-radius:99px; padding:1px 10px; margin-right:6px; vertical-align:middle; }
+.star { color:var(--warn); font-weight:700; }
+ul { margin:4px 0; padding-left:1.3em; } li { margin:3px 0; }
+table { width:100%; border-collapse:collapse; font-size:.92rem; } td,th { padding:6px 4px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+code { background:var(--line); padding:0 5px; border-radius:4px; font-size:.9em; }
+a { color:var(--acc); }
+</style>
+</head>
+<body>
+<main>
+  <h1>直前30分まとめ</h1>
+  <p class="sub">Claude Certified Developer – Foundations（53問・120分・720/1000）。<span class="star">★</span>は、診断で落としやすかった所です。上から順に、時間を決めて読んでください。</p>
+
+  <div class="card">
+    <h2><span class="time">0〜3分</span>解き方の約束</h2>
+    <ul>
+      <li>1問あたり約2分。<b>迷ったら印を付けて飛ばし</b>、最後に戻る。</li>
+      <li><b>複数選択は、選ぶ個数を先に確認</b>。組み合わせが合わないと不正解。</li>
+      <li>正解になりやすい考え方
+        <ul>
+          <li>「お願い（プロンプト）」より<b>強制力のある制御</b>（フック・スキーマ検証・最小権限）</li>
+          <li>切り替える前に<b>評価する</b>（モデル・プロンプト）</li>
+          <li>直す前に<b>原因の層を切り分ける</b>（統合レイヤーかモデル出力か）</li>
+          <li><b>モデルの出力を鵜呑みにしない</b>（検証・防御的パース）</li>
+          <li>秘密はコードに書かない。権限は<b>最小限</b>。</li>
+        </ul></li>
+      <li>極端な選択肢（「必ず」「常に」「無制限」）は、まず疑う。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2><span class="time">3〜12分</span><span class="star">★</span>エージェントとワークフロー（14.7%）</h2>
+    <table>
+      <tr><th>場面</th><th>答え</th></tr>
+      <tr><td>手順が決まっている</td><td>ワークフロー（プロンプトの連結）。まずは単純なほうを選ぶ</td></tr>
+      <tr><td>入力を分類して専門処理へ</td><td>ルーティング</td></tr>
+      <tr><td>独立した作業を同時に／同じ処理を複数回で信頼度を上げる</td><td>並列化（分割・投票）</td></tr>
+      <tr><td><b>サブタスクが入力ごとに変わり、事前に決められない</b></td><td><b>オーケストレーターとワーカー</b></td></tr>
+      <tr><td><b>評価基準が明確で、反復で良くなる</b>（推敲・翻訳）</td><td><b>評価者と最適化者のループ</b>（終了条件を必ず持つ）</td></tr>
+    </table>
+    <h3>エージェントループ</h3>
+    <ul>
+      <li><code>stop_reason</code> が <code>tool_use</code> → ツール実行 → <code>tool_result</code> を履歴に足して、もう一度呼ぶ。<code>end_turn</code> で終了。</li>
+      <li><b>最大回数・予算などの終了条件</b>を、ループ側に持たせる（無限ループ対策）。</li>
+      <li><span class="star">★</span><b>ツール呼び出しが複数</b>（1応答に tool_use が3つ）→ <b>3つの tool_result を1つの user メッセージにまとめ</b>、<code>tool_use_id</code> で対応させる。</li>
+      <li>ツール失敗は <code>is_error</code> 付きで返し、モデルに立て直させる。</li>
+    </ul>
+    <h3>サブエージェント</h3>
+    <ul>
+      <li>独立したコンテキストで動き、<b>要点だけを返す</b> → 親のコンテキストが膨らまない。独立した調査は並列にできる。</li>
+      <li><span class="star">★</span><b>親の会話は見えない。</b>目的・対象・制約・期待する出力を、<b>渡す指示の中に全部書く</b>（「ログを調べて」だけでは的外れになる）。</li>
+    </ul>
+    <h3>フック</h3>
+    <ul>
+      <li>毎回決まって実行される<b>決定論的</b>な制御。「お願い」より確実。</li>
+      <li><span class="star">★</span>見せたくない・実行させたくないものは<b>PreToolUse</b>（実行前に止める）。PostToolUse は実行後なので遅い。編集後のリンター実行などは PostToolUse。</li>
+    </ul>
+    <h3>その他</h3>
+    <ul><li>マネージドエージェントには、セルフホストと Anthropic ホストがある。フレームワークの例: Strands、LangGraph、PydanticAI。</li></ul>
+  </div>
+
+  <div class="card">
+    <h2><span class="time">12〜21分</span><span class="star">★</span>モデルの選択と最適化（16.8%）</h2>
+    <h3>プロンプトキャッシュ（最重要）</h3>
+    <ul>
+      <li>効くのは<b>先頭からの完全一致</b>（プレフィックス）。順序は <b>tools → system → messages</b>。</li>
+      <li><span class="star">★</span><b>先頭側（tools・system）が変わると、後ろも全部無効</b>（全部再書き込み）。ツールの説明文の修正も該当。</li>
+      <li>毎回変わる値（時刻・ID）は<b>後ろ（messages 側）</b>に置く。先頭に置くとヒットしない。</li>
+      <li>有効期間は標準5分。ヒットで更新される。<span class="star">★</span><b>アクセス間隔が不規則なら1時間キャッシュ</b>（書き込みは割高なので、再書き込みが減ると得）。</li>
+      <li>書き込みは通常より割高、読み取りは安い。<b>1回しか使わないなら、かえって損</b>。</li>
+      <li><span class="star">★</span>効いたかの確認は <code>usage</code> の <b><code>cache_read_input_tokens</code></b> が 0 より大きいか。</li>
+    </ul>
+    <h3>モデル・設定の選び方</h3>
+    <ul>
+      <li>Opus＝難しい推論・エージェント／Sonnet＝バランス／Haiku＝速く安い（大量・単純）。</li>
+      <li><span class="star">★</span><b>分類は小さいモデル、難しい案件だけ大きいモデル</b>の二段構え。</li>
+      <li><span class="star">★</span><b>単純で速さ優先 → 小さいモデル＋低い effort（思考を使わない）</b>。思考はトークンと待ち時間が増える。</li>
+      <li>新しいモデルは動作が変わりうる → <b>評価セットで旧版と比べてから切り替え</b>。バージョンは固定。</li>
+    </ul>
+    <h3>非決定性・思考</h3>
+    <ul>
+      <li><span class="star">★</span>temperature を下げても<b>完全一致は保証されない</b> → テストは<b>形式・要点・基準</b>で検証し、複数回流す。</li>
+      <li><span class="star">★</span><b>思考＋ツール</b>のループでは、直前の assistant ターンの <b>thinking ブロックを変更せずそのまま</b>返す。</li>
+    </ul>
+    <h3>コスト</h3>
+    <ul>
+      <li>Batches API は<b>通常より50%安い／非同期</b>。待たなくてよい大量処理向け。結果は順不同 → <code>custom_id</code> で対応。対話には使わない。</li>
+      <li>入力は <code>usage</code> で追跡。事前に数えるなら token counting。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2><span class="time">21〜28分</span>アプリケーションと統合（33.1%）</h2>
+    <h3>API の挙動</h3>
+    <ul>
+      <li><b>ステートレス</b>：履歴は毎回 <code>messages</code> に入れて送る。</li>
+      <li><code>stop_reason</code>：<code>end_turn</code>（完了）／<code>max_tokens</code>（打ち切り）／<code>tool_use</code>（ツール要求）。</li>
+      <li><b><code>max_tokens</code> でツール入力が途切れたら、実行しない</b>。上限を上げて再リクエスト。</li>
+      <li><code>tool_result</code> は <b>user ロール</b>で、<code>tool_use_id</code> を対応させる。</li>
+      <li><b>ストリーミング</b>：SSE。差分を連結。ツール入力の JSON 断片（<code>input_json_delta</code>）は、<b>ブロック終了まで蓄積してからパース</b>。<b>200 で始まっても、途中でエラーイベントが来うる</b> → 処理を用意。</li>
+      <li>ビジョン：画像は user の content に、画像ブロック（base64 か URL）＋テキストブロック。</li>
+      <li>同じ大きなファイルを繰り返し使う → <b>Files API</b>（アップロードして <code>file_id</code> で参照）＋キャッシュ。</li>
+    </ul>
+    <h3>エラー対応</h3>
+    <ul>
+      <li>429／529／5xx（一時的）→ <b>バックオフ付きリトライ</b>＋<b>同時実行数の制限</b>。</li>
+      <li>413（大きすぎ）→ 入力を縮小。400（不正）・401（認証）→ <b>リトライしても直らない</b>。</li>
+      <li>並列実行（<code>asyncio.gather</code>）は <code>return_exceptions=True</code> で、1件の失敗で全体が落ちないように。</li>
+    </ul>
+    <h3>設計・構成管理</h3>
+    <ul>
+      <li>ユーザー入力は<b>タグで囲んで指示と分ける</b>。恒久ルールは system に。</li>
+      <li><code>CLAUDE.md</code>：ユーザー（<code>~/.claude/CLAUDE.md</code>）／プロジェクト／サブディレクトリの階層。<b>長すぎると守られない</b> → 重要な規則に絞り、詳細はスキル等へ。</li>
+      <li>チーム共有の設定 → <code>.claude/settings.json</code>（Git 管理）。個人の上書き → <code>settings.local.json</code>。</li>
+      <li>モデルは<b>日付付きバージョンを固定</b>。プロンプトも Git で管理。</li>
+      <li>プロンプト変更の流れ：<b>評価セットで回帰テスト → 段階的リリース → 監視 → 戻せる状態</b>。</li>
+      <li>大きなリファクタ：<b>テストを先に整え、小さな単位で変更→テスト→コミット</b>。</li>
+      <li>会社の統制が要る → Bedrock などクラウド経由。機能の対応状況はプラットフォームごとに違う。</li>
+      <li>長い会話のコスト → 履歴の末尾付近にキャッシュ区切り＋<b>古いツール結果を刈り込む／要約</b>。無関係な作業は新しいセッションへ。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2><span class="time">28〜30分</span>残りの分野：1行ずつ</h2>
+    <ul>
+      <li><b>プロンプト（11%）</b>：長い文書は先、質問は後ろ。少数ショットは<b>多様に</b>（偏ると出力も偏る）。構造化出力は<b>形式の保証＝値が正しい、ではない</b> → 業務ルールで検証。ツール出力は<b>絞ってから</b>履歴へ。</li>
+      <li><b>ツールと MCP（10.6%）</b>：説明は「何を・いつ・引数」を具体的に。似たツールは統合か書き分け。結果は最小限（ページング）。<b>取り消せない操作は人間の承認</b>。<b>stdio の MCP は標準出力にログを出さない</b>（stderr へ）。データ＝リソース／操作＝ツール。自社の操作はクライアント側ツール。手順書＝スキル。</li>
+      <li><b>セキュリティ（8.1%）</b>：外部コンテンツは<b>信頼できない入力</b>として分離＋<b>最小権限</b>＋フック。キーは環境変数・シークレット管理、フロントに置かない、ログに出さない。PII はマスク。</li>
+      <li><b>Claude Code（3.1%）</b>：個人共通は <code>~/.claude/CLAUDE.md</code>。CI では<b>ヘッドレス</b>（<code>claude -p</code>）。</li>
+      <li><b>デバッグ（2.6%）</b>：トレースで層を切り分け。失敗を集めて評価セットへ。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>当日の確認</h2>
+    <ul>
+      <li>名前が一致する、<b>有効期限内の本人確認書類</b>。静かな部屋、安定したネットワーク。</li>
+      <li>名前は <b>Takahito Umehara</b>（ローマ字）で登録済み。</li>
+      <li>深呼吸して、最初の1問は<b>落ち着いて</b>。</li>
+    </ul>
+    <p class="sub">この資料は自作で、公式ドキュメントと食い違う可能性があります。ドキュメントを優先してください。<a href="./">対策サイトに戻る</a></p>
+  </div>
+</main>
+</body>
+</html>
