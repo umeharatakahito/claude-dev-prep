@@ -112,10 +112,11 @@ function viewQuiz() {
 function finish() {
   const pool = POOLS[quiz.set](), per = {};
   DOMAINS.forEach((d) => (per[d.id] = { n: 0, c: 0 }));
-  quiz.order.forEach((o, i) => { const q = pool[o.qi]; per[q.d].n++; if (isRight(q, quiz.answers[i])) per[q.d].c++; });
+  const missed = [];
+  quiz.order.forEach((o, i) => { const q = pool[o.qi]; per[q.d].n++; if (isRight(q, quiz.answers[i])) per[q.d].c++; else missed.push({ d: q.d, q: q.q, e: q.e, a: [].concat(q.a).map((k) => q.o[k]) }); });
   const sum = Object.values(per).reduce((t, p) => ({ n: t.n + p.n, c: t.c + p.c }), { n: 0, c: 0 });
   if (quiz.set === "basic") store.result = { at: new Date().toISOString(), per };
-  else store[quiz.set === "drill" ? "drill" : "practice"] = { at: new Date().toISOString(), per, n: sum.n, c: sum.c };
+  else store[quiz.set === "drill" ? "drill" : "practice"] = { at: new Date().toISOString(), per, n: sum.n, c: sum.c, missed };
   save(); quiz = null;
 }
 
@@ -142,7 +143,7 @@ function viewResult() {
     ${rows.slice().sort((a, b) => b.d.w - a.d.w).map((x) => `<tr><td>${x.d.id}. ${esc(x.d.name)}</td><td>${x.d.w}%</td>
       <td><div class="bar"><i style="width:${Math.round(x.acc * 100)}%"></i></div>${x.p.c}/${x.p.n}（${Math.round(x.acc * 100)}%）</td></tr>`).join("")}</table>
     <p class="sub">分野3・4は配点が小さい（それぞれ約3%）ため、問題数も少なく、ぶれやすい点に注意してください。</p></div>
-  ${store.practice ? `<h2>応用の結果（${new Date(store.practice.at).toLocaleDateString("ja-JP")}）</h2><div class="card"><b>${store.practice.c} / ${store.practice.n}問</b>（${Math.round(store.practice.c / store.practice.n * 100)}%）<table>${DOMAINS.filter((d) => store.practice.per[d.id].n).map((d) => { const p = store.practice.per[d.id]; return `<tr><td>${d.id}. ${esc(d.name)}</td><td>${p.c}/${p.n}</td></tr>`; }).join("")}</table></div>` : ""}
+  ${[["practice", "応用"], ["drill", "難問"]].filter(([k]) => store[k]).map(([k, n]) => { const r2 = store[k]; return `<h2>${n}の結果（${new Date(r2.at).toLocaleDateString("ja-JP")}）</h2><div class="card"><b>${r2.c} / ${r2.n}問</b>（${Math.round(r2.c / r2.n * 100)}%）<table><tr><th>分野</th><th>正解</th></tr>${DOMAINS.filter((d) => r2.per[d.id] && r2.per[d.id].n).map((d) => { const p = r2.per[d.id]; return `<tr><td>${d.id}. ${esc(d.name)}</td><td>${p.c}/${p.n}${p.c < p.n ? " ←" : ""}</td></tr>`; }).join("")}</table>${r2.missed && r2.missed.length ? `<p><b>間違えた問題</b></p>${r2.missed.map((m) => `<details><summary>${esc(m.q)}</summary><p class="sub">正解: ${esc(m.a.join(" / "))}</p><p class="note" style="white-space:pre-line">${esc(m.e)}</p></details>`).join("")}` : r2.missed ? "" : `<p class="sub">この回は、間違えた問題の記録がありません（次回から保存されます）。</p>`}</div>`; }).join("")}
   <h2>勉強の優先順位</h2>
   <div class="card"><ol>${sorted.map((x) => `<li><b>${esc(x.d.name)}</b> <span class="sub">（配点${x.d.w}% × 取りこぼし${Math.round((1 - x.acc) * 100)}%）</span><ul>${x.d.topics.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></li>`).join("")}</ol></div>
   <h2>日程の計画</h2>
