@@ -55,7 +55,7 @@ function renderNav() {
   $("#nav").querySelectorAll("button").forEach((b) => (b.onclick = () => { tab = b.dataset.t; render(); }));
 }
 
-const POOLS = { basic: () => QUESTIONS, hard: () => HARD };
+const POOLS = { basic: () => QUESTIONS, hard: () => HARD, drill: () => DRILL };
 const isMulti = (q) => Array.isArray(q.a);
 const isRight = (q, ans) => isMulti(q) ? Array.isArray(ans) && ans.length === q.a.length && q.a.every((k) => ans.includes(k)) : ans === q.a;
 const isRightKey = (q, k) => isMulti(q) ? q.a.includes(k) : k === q.a;
@@ -75,9 +75,13 @@ function viewQuiz() {
       <div class="card"><b>応用（${HARD.length}問）</b>
       <p class="sub">場面設定つきで、複数選択を含みます。アーキテクトらしい「判断」を問います。「2つ選べ」の問題は、組み合わせが完全に合ったときだけ正解です。${p ? `<br>前回: ${p.c}/${p.n}問（${Math.round(p.c / p.n * 100)}%）` : ""}</p>
       <button class="btn pri" id="go2">応用を始める</button></div>
+      <div class="card"><b>難問（${DRILL.length}問）</b>
+      <p class="sub">長めの場面設定と、もっともらしい選択肢の問題です。解説には「決め手」を付けました。配点の大きい統合・設計・評価を厚くしています。${store.drill ? `<br>前回: ${store.drill.c}/${store.drill.n}問（${Math.round(store.drill.c / store.drill.n * 100)}%）` : ""}</p>
+      <button class="btn pri" id="go3">難問を始める</button></div>
 `;
     $("#go").onclick = () => { startQuiz("basic"); render(); };
     $("#go2").onclick = () => { startQuiz("hard"); render(); };
+    $("#go3").onclick = () => { startQuiz("drill"); render(); };
     return;
   }
   const pool = POOLS[quiz.set](), cur = quiz.order[quiz.i], q = pool[cur.qi], multi = isMulti(q);
